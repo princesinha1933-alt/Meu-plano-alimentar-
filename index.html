@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meu Plano Alimentar</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--rosa:#d98ca4;--fundo:#fff8fa;--texto:#493640}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:var(--fundo);color:var(--texto)}
+header{background:#f4dce5;padding:25px 16px;text-align:center}
+main{max-width:760px;margin:auto;padding:16px}
+section{background:white;padding:18px;margin:14px 0;border-radius:16px;box-shadow:0 2px 10px #0000000a}
+h1{font-size:25px;margin:0 0 8px}
+h2{font-size:19px;margin-top:0}
+input,textarea,select,button{width:100%;padding:12px;margin:6px 0;border:1px solid #e6d5dc;border-radius:9px;font:inherit}
+button{background:var(--rosa);color:white;border:0;font-weight:bold;cursor:pointer}
+button.sec{background:#f3e7ec;color:var(--texto)}
+nav{display:flex;gap:7px;flex-wrap:wrap}
+nav button{width:auto;flex:1;min-width:90px}
+.item{padding:12px 0;border-bottom:1px solid #f0e4e9}
+.item:last-child{border:0}
+small,.muted{color:#826c77}
+#app{display:none}
+</style>
+</head>
+<body>
+<header>
+<h1>Meu Plano Alimentar 🌷</h1>
+<p>15 dias de organização e hábitos saudáveis</p>
+</header>
+<main>
+<section id="login">
+<h2>Entre na sua conta</h2>
+<p class="muted">Crie sua conta ou entre para salvar seus dados.</p>
+<input id="email" type="email" placeholder="Seu e-mail">
+<input id="senha" type="password" placeholder="Sua senha (mínimo 6 caracteres)">
+<button onclick="entrar()">Entrar</button>
+<button class="sec" onclick="cadastrar()">Criar minha conta</button>
+<p id="msg"></p>
+</section>
+
+<div id="app">
+<section>
+<p id="usuario"></p>
+<button class="sec" onclick="sair()">Sair da conta</button>
+<nav>
+<button onclick="aba('plano')">Refeições</button>
+<button onclick="aba('receitas')">Receitas</button>
+<button onclick="aba('sucos')">Sucos</button>
+</nav>
+</section>
+
+<div id="plano">
+<section>
+<h2>Meu planejamento diário 🗓️</h2>
+<label for="dia">Escolha o dia:</label>
+<input id="dia" type="date" onchange="carregarRefeicoes()">
+<p class="muted">Organize suas refeições e marque o que já realizou.</p>
+</section>
+<section>
+<h2>Adicionar refeição</h2>
+<form onsubmit="adicionarRefeicao(event)">
+<select id="categoria">
+<option>Café da manhã</option>
+<option>Lanche da manhã</option>
+<option>Almoço</option>
+<option>Lanche da tarde</option>
+<option>Jantar</option>
+<option>Ceia</option>
+</select>
+<input id="nomeRefeicao" placeholder="Nome da refeição" required>
+<input id="quantidade" placeholder="Quantidade ou porção (opcional)">
+<textarea id="observacao" placeholder="Observações (opcional)"></textarea>
+<button type="submit">Salvar refeição</button>
+</form>
+</section>
+<section>
+<h2>Checklist do dia ✅</h2>
+<div id="listaRefeicoes">Carregando...</div>
+<p id="progresso" class="muted"></p>
+</section>
+</div>
+
+<div id="receitas" style="display:none">
+<section>
+<h2>Minhas receitas 🍓</h2>
+<form onsubmit="adicionarReceita(event)">
+<input id="nomeReceita" placeholder="Nome da receita" required>
+<textarea id="ingredientesReceita" placeholder="Ingredientes" required></textarea>
+<textarea id="preparoReceita" placeholder="Modo de preparo" required></textarea>
+<input id="tempoReceita" placeholder="Tempo de preparo">
+<textarea id="obsReceita" placeholder="Observações (opcional)"></textarea>
+<button type="submit">Salvar receita</button>
+</form>
+</section>
+<section><h2>Receitas cadastradas</h2><div id="listaReceitas"></div></section>
+</div>
+
+<div id="sucos" style="display:none">
+<section>
+<h2>Sucos naturais 🍊</h2>
+<p class="muted">Sugestões para variar as bebidas. Nenhum suco precisa substituir refeições.</p>
+<form onsubmit="adicionarSuco(event)">
+<input id="nomeSuco" placeholder="Nome do suco" required>
+<textarea id="ingredientesSuco" placeholder="Ingredientes" required></textarea>
+<textarea id="preparoSuco" placeholder="Modo de preparo" required></textarea>
+<textarea id="obsSuco" placeholder="Observações (opcional)"></textarea>
+<button type="submit">Salvar suco</button>
+</form>
+</section>
+<section><h2>Meus sucos</h2><div id="listaSucos"></div></section>
+</div>
+<p class="muted">Este planner ajuda na organização e não substitui a orientação de um nutricionista.</p>
+</div>
+</main>
+
+<script>
+const SUPABASE_URL = "https://ssjsgnsdqvfuaasqpdza.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_D7poq3jIKtLg6XkaC3eJtA_h44mO9D_";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let usuarioAtual = null;
+
+function mostrar(id, texto){
+  document.getElementById(id).textContent = texto;
+}
+async function entrar(){
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('senha').value;
+  const {data,error}=await db.auth.signInWithPassword({email,password});
+  if(error){mostrar('msg',error.message);return}
+  await iniciar(data.user);
+}
+async function cadastrar(){
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('senha').value;
+  if(password.length<6){mostrar('msg','Use uma senha com pelo menos 6 caracteres.');return}
+  const {data,error}=await db.auth.signUp({email,password});
+  if(error){mostrar('msg',error.message);return}
+  if(data.session){await iniciar(data.user)}
+  else{mostrar('msg','Conta criada! Confira seu e-mail para confirmar o cadastro e depois entre.')}
+}
+async function sair(){
+  await db.auth.signOut();
+  usuarioAtual=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login').style.display='block';
+}
+async function iniciar(user){
+  usuarioAtual=user;
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  mostrar('usuario','Conectada: '+user.email);
+  document.getElementById('dia').value=hoje();
+  await carregarRefeicoes();
+  await carregarReceitas();
+  await carregarSucos();
+}
+function hoje(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function aba(nome){
+  ['plano','receitas','sucos'].forEach(id=>{
+    document.getElementById(id).style.display=id===nome?'block':'none';
+  });
+}
+async function adicionarRefeicao(e){
+  e.preventDefault();
+  const {error}=await db.from('refeicoes').insert({
+    user_id:usuarioAtual.id,
+    data:document.getElementById('dia').value,
+    categoria:document.getElementById('categoria').value,
+    nome:document.getElementById('nomeRefeicao').value.trim(),
+    quantidade:document.getElementById('quantidade').value.trim(),
+    observacao:document.getElementById('observacao').value.trim(),
+    realizada:false
+  });
+  if(error){alert('Não foi possível salvar: '+error.message);return}
+  e.target.reset();
+  await carregarRefeicoes();
+}
+async function carregarRefeicoes(){
+  if(!usuarioAtual)return;
+  const {data,error}=await db.from('refeicoes')
+    .select('*').eq('user_id',usuarioAtual.id)
+    .eq('data',document.getElementById('dia').value)
+    .order('criada_em',{ascending:true});
+  if(error){mostrar('listaRefeicoes','Erro ao carregar: '+error.message);return}
+  const lista=document.getElementById('listaRefeicoes');
+  lista.innerHTML='';
+  if(!data.length){lista.textContent='Nenhuma refeição cadastrada para este dia.'}
+  data.forEach(r=>{
+    const item=document.createElement('div');item.className='item';
+    const check=document.createElement('input');
+    check.type='checkbox';check.checked=!!r.realizada;
+    check.style.width='auto';check.style.marginRight='8px';
+    check.onchange=()=>marcarRefeicao(r.id,check.checked);
+    const titulo=document.createElement('strong');
+    titulo.textContent=r.categoria+': '+r.nome;
+    const linha=document.createElement('div');
+    linha.append(check,titulo);
+    item.append(linha);
+    if(r.quantidade){const p=document.createElement('p');p.textContent=r.quantidade;item.append(p)}
+    if(r.observacao){const p=document.createElement('small');p.textContent=r.observacao;item.append(p)}
+    const apagar=document.createElement('button');apagar.className='sec';
+    apagar.textContent='Excluir';apagar.onclick=()=>excluir('refeicoes',r.id,carregarRefeicoes);
+    item.append(apagar);lista.append(item);
+  });
+  const feitas=data.filter(r=>r.realizada).length;
+  mostrar('progresso',`${feitas} de ${data.length} refeições marcadas como realizadas.`);
+}
+async function marcarRefeicao(id,realizada){
+  const {error}=await db.from('refeicoes').update({realizada}).eq('id',id).eq('user_id',usuarioAtual.id);
+  if(error){alert(error.message);return}
+  await carregarRefeicoes();
+}
+async function adicionarReceita(e){
+  e.preventDefault();
+  const {error}=await db.from('receitas').insert({
+    user_id:usuarioAtual.id,
+    nome:document.getElementById('nomeReceita').value.trim(),
+    ingredientes:document.getElementById('ingredientesReceita').value.trim(),
+    preparo:document.getElementById('preparoReceita').value.trim(),
+    tempo_preparo:document.getElementById('tempoReceita').value.trim(),
+    observacoes:document.getElementById('obsReceita').value.trim()
+  });
+  if(error){alert('Não foi possível salvar: '+error.message);return}
+  e.target.reset();await carregarReceitas();
+}
+async function carregarReceitas(){
+  if(!usuarioAtual)return;
+  const {data,error}=await db.from('receitas').select('*')
+    .eq('user_id',usuarioAtual.id).order('criada_em',{ascending:false});
+  if(error){mostrar('listaReceitas','Erro ao carregar: '+error.message);return}
+  const lista=document.getElementById('listaReceitas');lista.innerHTML='';
+  if(!data.length){lista.textContent='Você ainda não cadastrou receitas.'}
+  data.forEach(r=>{
+    const item=document.createElement('div');item.className='item';
+    const h=document.createElement('strong');h.textContent=r.nome;item.append(h);
+    [r.ingredientes,r.preparo,r.tempo_preparo,r.observacoes].filter(Boolean).forEach(t=>{
+      const p=document.createElement('p');p.textContent=t;item.append(p);
+    });
+    const fav=document.createElement('button');fav.className='sec';
+    fav.textContent=r.compartilhada?'★ Receita marcada':'☆ Marcar favorita';
+    fav.onclick=async()=>{
+      const {error}=await db.from('receitas').update({compartilhada:!r.compartilhada})
+        .eq('id',r.id).eq('user_id',usuarioAtual.id);
+      if(error){alert(error.message);return}await carregarReceitas();
+    };
+    item.append(fav);
+    const apagar=document.createElement('button');apagar.className='sec';
+    apagar.textContent='Excluir';apagar.onclick=()=>excluir('receitas',r.id,carregarReceitas);
+    item.append(apagar);lista.append(item);
+  });
+}
+async function adicionarSuco(e){
+  e.preventDefault();
+  const {error}=await db.from('sucos').insert({
+    user_id:usuarioAtual.id,
+    nome:document.getElementById('nomeSuco').value.trim(),
+    ingredientes:document.getElementById('ingredientesSuco').value.trim(),
+    preparo:document.getElementById('preparoSuco').value.trim(),
+    observacoes:document.getElementById('obsSuco').value.trim()
+  });
+  if(error){alert('Não foi possível salvar: '+error.message);return}
+  e.target.reset();await carregarSucos();
+}
+async function carregarSucos(){
+  if(!usuarioAtual)return;
+  const {data,error}=await db.from('sucos').select('*')
+    .eq('user_id',usuarioAtual.id).order('criada_em',{ascending:false});
+  if(error){mostrar('listaSucos','Erro ao carregar: '+error.message);return}
+  const lista=document.getElementById('listaSucos');lista.innerHTML='';
+  if(!data.length){lista.textContent='Você ainda não cadastrou sucos.'}
+  data.forEach(r=>{
+    const item=document.createElement('div');item.className='item';
+    const h=document.createElement('strong');h.textContent=r.nome;item.append(h);
+    [r.ingredientes,r.preparo,r.observacoes].filter(Boolean).forEach(t=>{
+      const p=document.createElement('p');p.textContent=t;item.append(p);
+    });
+    const apagar=document.createElement('button');apagar.className='sec';
+    apagar.textContent='Excluir';apagar.onclick=()=>excluir('sucos',r.id,carregarSucos);
+    item.append(apagar);lista.append(item);
+  });
+}
+async function excluir(tabela,id,recarregar){
+  if(!confirm('Deseja excluir este item?'))return;
+  const {error}=await db.from(tabela).delete().eq('id',id).eq('user_id',usuarioAtual.id);
+  if(error){alert('Não foi possível excluir: '+error.message);return}
+  await recarregar();
+}
+db.auth.getSession().then(({data})=>{
+  if(data.session)iniciar(data.session.user);
+});
+</script>
+</body>
+</html> 
