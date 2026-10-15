@@ -63,13 +63,7 @@ small,.muted{color:#826c77}
 <h2>Adicionar refeição</h2>
 <form onsubmit="adicionarRefeicao(event)">
 <select id="categoria">
-<option>Café da manhã</option>
-<option>Lanche da manhã</option>
-<option>Almoço</option>
-<option>Lanche da tarde</option>
-<option>Jantar</option>
-<option>Ceia</option>
-</select>
+
 <input id="nomeRefeicao" placeholder="Nome da refeição" required>
 <input id="quantidade" placeholder="Quantidade ou porção (opcional)">
 <textarea id="observacao" placeholder="Observações (opcional)"></textarea>
@@ -82,7 +76,13 @@ small,.muted{color:#826c77}
 <p id="progresso" class="muted"></p>
 </section>
 </div>
-
+<option value="café_da_manhã">Café da manhã</option>
+<option value="lanche_da_manhã">Lanche da manhã</option>
+<option value="almoço">Almoço</option>
+<option value="lanche_da_tarde">Lanche da tarde</option>
+<option value="jantar">Jantar</option>
+<option value="ceia">Ceia</option>
+</select>
 <div id="receitas" style="display:none">
 <section>
 <h2>Minhas receitas 🍓</h2>
